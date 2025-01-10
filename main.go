@@ -125,7 +125,7 @@ func main() {
 	s.flags.SlaveId = byte(slaveId)
 
 	if err := s.CreateNewModbusTcpConnection(); err != nil {
-		fmt.Printf("Error creating modbus tcp connection: %v", err)
+		fmt.Printf("Error creating modbus tcp connection: %v\n", err)
 		return
 	}
 
