@@ -5,7 +5,6 @@ import (
 	"encoding/binary"
 	"flag"
 	"fmt"
-	//"m31config/pkg/modbus"
 	"github.com/goburrow/modbus"
 	"time"
 )
@@ -14,6 +13,7 @@ type Flags struct {
 	Address string
 	Port    int
 	SlaveId byte
+	Debug   bool
 }
 
 type Config struct {
@@ -66,7 +66,9 @@ func (c *M31Config) ShowConfiguration() {
 		return
 	}
 
-	fmt.Printf("Reading data: %v\n", payload)
+	if c.flags.Debug {
+		fmt.Printf("Reading data: %v\n", payload)
+	}
 
 	reader := bytes.NewReader(payload)
 	config := Config{}
@@ -76,7 +78,10 @@ func (c *M31Config) ShowConfiguration() {
 		return
 	}
 
-	fmt.Printf("Config: %+v\n", config)
+	if c.flags.Debug {
+		fmt.Printf("Config: %+v\n", config)
+	}
+
 	fmt.Printf("MAC : %x:%x:%x:%x:%x:%x\n", config.MacAddress[0], config.MacAddress[1], config.MacAddress[2], config.MacAddress[3], config.MacAddress[4], config.MacAddress[5])
 	if config.Dhcp == 1 {
 		fmt.Printf("DHCP: enabled\n")
@@ -106,17 +111,17 @@ func (c *M31Config) ShowConfiguration() {
 	fmt.Printf("Mask: %d.%d.%d.%d\n", config.Mask[0], config.Mask[1], config.Mask[2], config.Mask[3])
 	fmt.Printf("GW  : %d.%d.%d.%d\n", config.Gateway[0], config.Gateway[1], config.Gateway[2], config.Gateway[3])
 	fmt.Printf("DNS : %d.%d.%d.%d\n", config.Dns[0], config.Dns[1], config.Dns[2], config.Dns[3])
-
 }
 
 func main() {
 
 	s := NewM31Config()
+	var slaveId uint
 
 	flag.StringVar(&s.flags.Address, "a", "192.168.3.7", "network address")
 	flag.IntVar(&s.flags.Port, "p", 502, "network port")
-	var slaveId uint
 	flag.UintVar(&slaveId, "s", 1, "slave identifier")
+	flag.BoolVar(&s.flags.Debug, "d", false, "show debug info")
 	s.flags.SlaveId = byte(slaveId)
 
 	if err := s.CreateNewModbusTcpConnection(); err != nil {
