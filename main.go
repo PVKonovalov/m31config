@@ -16,9 +16,13 @@ type Flags struct {
 	Debug   bool
 }
 
+var BaudRate = [...]uint{2400, 4800, 9600, 19200, 38400, 57600, 115200, 230400}
+var ParityCheck = [...]string{"NONE", "ODD", "EVEN"}
+var NetworkMode = [...]string{"TCP server", "TCP client", "UDP server", "UDP client"}
+
 type Config struct {
 	SerialPortRateCode              uint16
-	SerialPortChecking              uint16
+	SerialPortParityCheck           uint16
 	NetworkMode                     uint16
 	Dhcp                            uint16
 	MacAddress                      [6]byte
@@ -46,18 +50,18 @@ func NewM31Config() *M31Config {
 	return &M31Config{}
 }
 
-func (c *M31Config) CreateNewModbusTcpConnection() error {
+func (s *M31Config) CreateNewModbusTcpConnection() error {
 
-	c.modbusTcpHandler = modbus.NewTCPClientHandler(fmt.Sprintf("%s:%d", c.flags.Address, c.flags.Port))
-	c.modbusTcpHandler.Timeout = time.Duration(5) * time.Second
-	c.modbusTcpHandler.IdleTimeout = time.Duration(10) * time.Second
-	c.modbusTcpHandler.SlaveId = c.flags.SlaveId
+	s.modbusTcpHandler = modbus.NewTCPClientHandler(fmt.Sprintf("%s:%d", s.flags.Address, s.flags.Port))
+	s.modbusTcpHandler.Timeout = time.Duration(5) * time.Second
+	s.modbusTcpHandler.IdleTimeout = time.Duration(10) * time.Second
+	s.modbusTcpHandler.SlaveId = s.flags.SlaveId
 
-	return c.modbusTcpHandler.Connect()
+	return s.modbusTcpHandler.Connect()
 }
 
-func (c *M31Config) ShowConfiguration() {
-	client := modbus.NewClient(c.modbusTcpHandler)
+func (s *M31Config) ShowConfiguration() {
+	client := modbus.NewClient(s.modbusTcpHandler)
 
 	payload, err := client.ReadHoldingRegisters(30000, 89)
 
@@ -66,7 +70,7 @@ func (c *M31Config) ShowConfiguration() {
 		return
 	}
 
-	if c.flags.Debug {
+	if s.flags.Debug {
 		fmt.Printf("Reading data: %v\n", payload)
 	}
 
@@ -78,7 +82,7 @@ func (c *M31Config) ShowConfiguration() {
 		return
 	}
 
-	if c.flags.Debug {
+	if s.flags.Debug {
 		fmt.Printf("Config: %+v\n", config)
 	}
 
@@ -94,28 +98,32 @@ func (c *M31Config) ShowConfiguration() {
 		fmt.Printf("Protocol Type: RTU\n")
 	}
 
-	switch config.NetworkMode {
-	case 0:
-		fmt.Printf("Mode: TCP server\n")
-	case 1:
-		fmt.Printf("Mode: TCP client\n")
-	case 2:
-		fmt.Printf("Mode: UDP server\n")
-	case 3:
-		fmt.Printf("Mode: UDP client\n")
-	default:
-		fmt.Printf("Mode: Unknown (%d)\n", config.NetworkMode)
+	if config.NetworkMode < uint16(len(NetworkMode)) {
+		fmt.Printf("Network Mode: %s\n", NetworkMode[config.NetworkMode])
+	} else {
+		fmt.Printf("Network Mode unknown: %d\n", config.NetworkMode)
 	}
+
 	fmt.Printf("IP  : %d.%d.%d.%d\n", config.Address[0], config.Address[1], config.Address[2], config.Address[3])
 	fmt.Printf("Port: %d\n", config.Port)
 	fmt.Printf("Mask: %d.%d.%d.%d\n", config.Mask[0], config.Mask[1], config.Mask[2], config.Mask[3])
 	fmt.Printf("GW  : %d.%d.%d.%d\n", config.Gateway[0], config.Gateway[1], config.Gateway[2], config.Gateway[3])
 	fmt.Printf("DNS : %d.%d.%d.%d\n", config.Dns[0], config.Dns[1], config.Dns[2], config.Dns[3])
+	fmt.Printf("\n")
+	if config.SerialPortRateCode > 0 && config.SerialPortRateCode < uint16(len(BaudRate)) {
+		fmt.Printf("Baud rate: %d\n", BaudRate[config.SerialPortRateCode-1])
+	} else {
+		fmt.Printf("Baud rate code unknown: %d\n", config.SerialPortRateCode)
+	}
+
+	if config.SerialPortParityCheck < uint16(len(ParityCheck)) {
+		fmt.Printf("Parity chek: %s\n", ParityCheck[config.SerialPortParityCheck])
+	} else {
+		fmt.Printf("Parity chek code unknown: %d\n", config.SerialPortParityCheck)
+	}
 }
 
-func main() {
-
-	s := NewM31Config()
+func (s *M31Config) ParseFlags() {
 	var slaveId uint
 
 	flag.StringVar(&s.flags.Address, "a", "192.168.3.7", "network address")
@@ -123,6 +131,13 @@ func main() {
 	flag.UintVar(&slaveId, "s", 1, "slave identifier")
 	flag.BoolVar(&s.flags.Debug, "d", false, "show debug info")
 	s.flags.SlaveId = byte(slaveId)
+}
+
+func main() {
+
+	s := NewM31Config()
+
+	s.ParseFlags()
 
 	if err := s.CreateNewModbusTcpConnection(); err != nil {
 		fmt.Printf("Error creating modbus tcp connection: %v\n", err)
