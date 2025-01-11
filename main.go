@@ -11,11 +11,14 @@ import (
 )
 
 type Flags struct {
-	Address    string
-	Port       int
-	SlaveId    byte
-	Debug      bool
-	DnsAddress string
+	Address        string
+	Port           int
+	SlaveId        byte
+	Debug          bool
+	DnsAddress     string
+	DeviceAddress  string
+	GatewayAddress string
+	SubnetMask     string
 }
 
 var BaudRate = [...]uint{2400, 4800, 9600, 19200, 38400, 57600, 115200, 230400}
@@ -29,7 +32,7 @@ type Config struct {
 	Dhcp                            uint16
 	MacAddress                      [6]byte
 	Address                         [4]byte
-	Mask                            [4]byte
+	SubnetMask                      [4]byte
 	Gateway                         [4]byte
 	Dns                             [4]byte
 	Free                            [4]byte
@@ -68,24 +71,54 @@ func CheckIpAddress(address string) (net.IP, error) {
 		return nil, fmt.Errorf("IP address is not valid")
 	}
 
-	if ip.To4() == nil {
+	if ipv4 := ip.To4(); ipv4 == nil {
 		return nil, fmt.Errorf("IP address is not v4")
+	} else {
+		return ipv4, nil
 	}
-	return ip, nil
 }
 
 func (s *M31Config) SetDnsAddress(address string) error {
+	return s.setIpAddress(address, 30013)
+}
+
+func (s *M31Config) SetGatewayAddress(address string) error {
+	return s.setIpAddress(address, 30011)
+}
+
+func (s *M31Config) SetDeviceAddress(address string) error {
+	return s.setIpAddress(address, 30007)
+}
+
+func (s *M31Config) SetSubnetMask(address string) error {
+	return s.setIpAddress(address, 30009)
+}
+
+func (s *M31Config) setIpAddress(address string, firstRegister uint16) error {
 	ip, err := CheckIpAddress(address)
 
 	if err != nil {
 		return err
 	}
 
-	fmt.Printf("Set DNS address %+v\n", ip)
-	return nil
+	reg1 := uint16(ip[0])<<8 | uint16(ip[1])
+	reg2 := uint16(ip[2])<<8 | uint16(ip[3])
+
+	client := modbus.NewClient(s.modbusTcpHandler)
+
+	_, err = client.WriteSingleRegister(firstRegister, reg1)
+	if err != nil {
+		return err
+	}
+
+	_, err = client.WriteSingleRegister(firstRegister+1, reg2)
+
+	return err
 }
 
 func (s *M31Config) ShowConfiguration() {
+	newValues := ""
+
 	client := modbus.NewClient(s.modbusTcpHandler)
 
 	payload, err := client.ReadHoldingRegisters(30000, 89)
@@ -129,11 +162,33 @@ func (s *M31Config) ShowConfiguration() {
 		fmt.Printf("Network Mode unknown: %d\n", config.NetworkMode)
 	}
 
-	fmt.Printf("IP  : %d.%d.%d.%d\n", config.Address[0], config.Address[1], config.Address[2], config.Address[3])
+	if len(s.flags.DeviceAddress) != 0 {
+		newValues = fmt.Sprintf(" → %s", s.flags.DeviceAddress)
+	} else {
+		newValues = ""
+	}
+	fmt.Printf("IP  : %d.%d.%d.%d%s\n", config.Address[0], config.Address[1], config.Address[2], config.Address[3], newValues)
 	fmt.Printf("Port: %d\n", config.Port)
-	fmt.Printf("Mask: %d.%d.%d.%d\n", config.Mask[0], config.Mask[1], config.Mask[2], config.Mask[3])
-	fmt.Printf("GW  : %d.%d.%d.%d\n", config.Gateway[0], config.Gateway[1], config.Gateway[2], config.Gateway[3])
-	fmt.Printf("DNS : %d.%d.%d.%d\n", config.Dns[0], config.Dns[1], config.Dns[2], config.Dns[3])
+	if len(s.flags.SubnetMask) != 0 {
+		newValues = fmt.Sprintf(" → %s", s.flags.SubnetMask)
+	} else {
+		newValues = ""
+	}
+	fmt.Printf("Mask: %d.%d.%d.%d%s\n", config.SubnetMask[0], config.SubnetMask[1], config.SubnetMask[2], config.SubnetMask[3], newValues)
+
+	if len(s.flags.GatewayAddress) != 0 {
+		newValues = fmt.Sprintf(" → %s", s.flags.GatewayAddress)
+	} else {
+		newValues = ""
+	}
+	fmt.Printf("GW  : %d.%d.%d.%d%s\n", config.Gateway[0], config.Gateway[1], config.Gateway[2], config.Gateway[3], newValues)
+
+	if len(s.flags.DnsAddress) != 0 {
+		newValues = fmt.Sprintf(" → %s", s.flags.DnsAddress)
+	} else {
+		newValues = ""
+	}
+	fmt.Printf("DNS : %d.%d.%d.%d%s\n", config.Dns[0], config.Dns[1], config.Dns[2], config.Dns[3], newValues)
 	fmt.Printf("\n")
 	if config.SerialPortRateCode > 0 && config.SerialPortRateCode < uint16(len(BaudRate)) {
 		fmt.Printf("Baud rate: %d\n", BaudRate[config.SerialPortRateCode-1])
@@ -151,11 +206,14 @@ func (s *M31Config) ShowConfiguration() {
 func (s *M31Config) ParseFlags() {
 	var slaveId uint
 
-	flag.StringVar(&s.flags.Address, "a", "192.168.3.7", "network address")
-	flag.IntVar(&s.flags.Port, "p", 502, "network port")
-	flag.UintVar(&slaveId, "s", 1, "slave identifier")
+	flag.StringVar(&s.flags.Address, "a", "", "current network address of the device")
+	flag.IntVar(&s.flags.Port, "p", 0, "current network port of the device")
+	flag.UintVar(&slaveId, "s", 1, "device slave identifier")
 	flag.BoolVar(&s.flags.Debug, "d", false, "show debug info")
-	flag.StringVar(&s.flags.DnsAddress, "dns", "", "set DNS address")
+	flag.StringVar(&s.flags.DnsAddress, "dns", "", "set new DNS address")
+	flag.StringVar(&s.flags.DeviceAddress, "ip", "", "set new device network address")
+	flag.StringVar(&s.flags.GatewayAddress, "gw", "", "set default gateway address")
+	flag.StringVar(&s.flags.SubnetMask, "m", "", "set subnet mask")
 	s.flags.SlaveId = byte(slaveId)
 	flag.Parse()
 
@@ -180,4 +238,26 @@ func main() {
 			fmt.Printf("Error setting DNS address: %v\n", err)
 		}
 	}
+
+	if len(s.flags.GatewayAddress) != 0 {
+		err := s.SetGatewayAddress(s.flags.GatewayAddress)
+		if err != nil {
+			fmt.Printf("Error setting default gateway address: %v\n", err)
+		}
+	}
+
+	if len(s.flags.DeviceAddress) != 0 {
+		err := s.SetDeviceAddress(s.flags.DeviceAddress)
+		if err != nil {
+			fmt.Printf("Error setting device address: %v\n", err)
+		}
+	}
+	if len(s.flags.SubnetMask) != 0 {
+		err := s.SetSubnetMask(s.flags.SubnetMask)
+		if err != nil {
+			fmt.Printf("Error setting subnet mask: %v\n", err)
+		}
+	}
+
+	s.ShowConfiguration()
 }
