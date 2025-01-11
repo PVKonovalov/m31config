@@ -6,14 +6,16 @@ import (
 	"flag"
 	"fmt"
 	"github.com/goburrow/modbus"
+	"net"
 	"time"
 )
 
 type Flags struct {
-	Address string
-	Port    int
-	SlaveId byte
-	Debug   bool
+	Address    string
+	Port       int
+	SlaveId    byte
+	Debug      bool
+	DnsAddress string
 }
 
 var BaudRate = [...]uint{2400, 4800, 9600, 19200, 38400, 57600, 115200, 230400}
@@ -58,6 +60,29 @@ func (s *M31Config) CreateNewModbusTcpConnection() error {
 	s.modbusTcpHandler.SlaveId = s.flags.SlaveId
 
 	return s.modbusTcpHandler.Connect()
+}
+
+func CheckIpAddress(address string) (net.IP, error) {
+	ip := net.ParseIP(address)
+	if ip == nil {
+		return nil, fmt.Errorf("IP address is not valid")
+	}
+
+	if ip.To4() == nil {
+		return nil, fmt.Errorf("IP address is not v4")
+	}
+	return ip, nil
+}
+
+func (s *M31Config) SetDnsAddress(address string) error {
+	ip, err := CheckIpAddress(address)
+
+	if err != nil {
+		return err
+	}
+
+	fmt.Printf("Set DNS address %+v\n", ip)
+	return nil
 }
 
 func (s *M31Config) ShowConfiguration() {
@@ -130,7 +155,10 @@ func (s *M31Config) ParseFlags() {
 	flag.IntVar(&s.flags.Port, "p", 502, "network port")
 	flag.UintVar(&slaveId, "s", 1, "slave identifier")
 	flag.BoolVar(&s.flags.Debug, "d", false, "show debug info")
+	flag.StringVar(&s.flags.DnsAddress, "dns", "", "set DNS address")
 	s.flags.SlaveId = byte(slaveId)
+	flag.Parse()
+
 }
 
 func main() {
@@ -145,4 +173,11 @@ func main() {
 	}
 
 	s.ShowConfiguration()
+
+	if len(s.flags.DnsAddress) != 0 {
+		err := s.SetDnsAddress(s.flags.DnsAddress)
+		if err != nil {
+			fmt.Printf("Error setting DNS address: %v\n", err)
+		}
+	}
 }
