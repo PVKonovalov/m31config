@@ -41,7 +41,7 @@ GW  : 192.168.3.1
 DNS : 192.168.3.1
 
 Baud rate: 9600
-Parity chek: NONE
+Parity check: NONE
 ```
 
 ## Set new network parameters

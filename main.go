@@ -197,9 +197,9 @@ func (s *M31Config) ShowConfiguration() {
 	}
 
 	if config.SerialPortParityCheck < uint16(len(ParityCheck)) {
-		fmt.Printf("Parity chek: %s\n", ParityCheck[config.SerialPortParityCheck])
+		fmt.Printf("Parity check: %s\n", ParityCheck[config.SerialPortParityCheck])
 	} else {
-		fmt.Printf("Parity chek code unknown: %d\n", config.SerialPortParityCheck)
+		fmt.Printf("Parity check code unknown: %d\n", config.SerialPortParityCheck)
 	}
 }
 
