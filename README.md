@@ -1,6 +1,9 @@
 # m31config
 
-Console application for configuration [M31-AAAX4440G Modbus module](https://www.cdebyte.com/products/M31-AAAX4440G)
+Console application for configuration [M31-AAAX4440G Modbus module](https://www.cdebyte.com/products/M31-AAAX4440G) via Modbus TCP.
+The thing is that the standard configuration application 1) requires Windows 2) does not see 
+the device if it is in another network. But due to the fact that all configuration parameters are located as 
+Modbus registers, we can configure the device directly with Modbus commands.
 
 ```
 -a string
@@ -20,7 +23,7 @@ Console application for configuration [M31-AAAX4440G Modbus module](https://www.
     	device slave identifier (default 1)
 ```
 
-## Getting current configuration
+## Getting current device configuration
 
 ```shell
 ./m31config -a 192.168.3.7 -p 502 -s 1
@@ -46,4 +49,9 @@ Current device address is `192.168.3.7`
 
 ```shell
 ./m31config -a 192.168.3.7 -p 502 -s 1 -ip 192.168.2.5 -m 255.255.255.0 -gw 192.168.2.1 -dns 192.168.2.1
+```
+
+## Building
+```shell
+go build .
 ```
